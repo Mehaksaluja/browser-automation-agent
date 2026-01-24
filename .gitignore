@@ -1,0 +1,56 @@
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+
+# Virtual env
+venv/
+.venv/
+backend/venv/
+backend/.venv/
+
+# Python build
+build/
+dist/
+*.egg-info/
+
+# =========================
+# Environment files
+# =========================
+.env
+backend/.env
+frontend/.env
+
+# =========================
+# Playwright
+# =========================
+playwright/.cache/
+*.webm
+
+# =========================
+# Node (future frontend)
+# =========================
+node_modules/
+frontend/node_modules/
+
+# React build
+frontend/dist/
+dist/
+
+# =========================
+# Misc
+# =========================
+coverage/
