@@ -67,6 +67,66 @@ class BrowserManager:
             "url": page.url,
             "title": await page.title()
         }
+    
+    async def observe_enhanced(self, session_id: str) -> Dict:
+        """Enhanced page observation with more details."""
+        page = await self.get_page(session_id)
+        
+        # Get visible elements
+        visible_buttons = await page.locator("button:visible").count()
+        visible_inputs = await page.locator("input:visible, textarea:visible").count()
+        visible_links = await page.locator("a:visible").count()
+        
+        # Get page text content (first 500 chars)
+        try:
+            body_text = await page.locator("body").inner_text()
+            page_text_preview = body_text[:500] if body_text else ""
+        except:
+            page_text_preview = ""
+        
+        return {
+            "url": page.url,
+            "title": await page.title(),
+            "visible_buttons": visible_buttons,
+            "visible_inputs": visible_inputs,
+            "visible_links": visible_links,
+            "text_preview": page_text_preview
+        }
+    
+    async def wait_for_element(
+        self,
+        session_id: str,
+        selector: str,
+        timeout_ms: int = 10000
+    ):
+        """Wait for an element to appear on the page."""
+        page = await self.get_page(session_id)
+        await page.locator(selector).first.wait_for(state="visible", timeout=timeout_ms)
+    
+    async def scroll(self, session_id: str, direction: str = "down"):
+        """Scroll the page."""
+        page = await self.get_page(session_id)
+        if direction == "down":
+            await page.evaluate("window.scrollBy(0, window.innerHeight)")
+        elif direction == "up":
+            await page.evaluate("window.scrollBy(0, -window.innerHeight)")
+        elif direction == "top":
+            await page.evaluate("window.scrollTo(0, 0)")
+        elif direction == "bottom":
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    
+    async def select_option(
+        self,
+        session_id: str,
+        selector: str,
+        value: str,
+        timeout_ms: int = 8000
+    ):
+        """Select an option from a dropdown/select element."""
+        page = await self.get_page(session_id)
+        loc = page.locator(selector).first
+        await loc.wait_for(state="visible", timeout=timeout_ms)
+        await loc.select_option(value)
 
     async def close_session(self, session_id: str):
         if session_id in self._sessions:

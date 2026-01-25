@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.session import (
@@ -12,10 +13,22 @@ from app.schemas.actions import (
     TypeRequest,
     ObserveResponse
 )
+from app.schemas.task import (
+    TaskRequest,
+    TaskResponse,
+    InformationResponse,
+)
 from app.services.browser_manager import BrowserManager
+from app.services.task_agent import TaskAgent
+from app.services.workflow_executor import WorkflowExecutor
 
 router = APIRouter()
 browser_manager = BrowserManager()
+
+# Initialize task agent with OpenAI API key from environment
+openai_api_key = os.getenv("OPENAI_API_KEY")
+task_agent = TaskAgent(api_key=openai_api_key)
+workflow_executor = WorkflowExecutor(browser_manager, task_agent)
 
 @router.get("/health")
 async def health():
@@ -98,3 +111,96 @@ async def observe_basic(session_id: str):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Observe failed: {str(e)}")
+
+
+# ---------------------------
+# Task Orchestration
+# ---------------------------
+@router.post("/task/start", response_model=TaskResponse)
+async def start_task(payload: TaskRequest):
+    """
+    Start a new automation task based on a natural language prompt.
+    The agent will analyze the task, determine what information is needed,
+    and begin execution.
+    
+    Example prompts:
+    - "Book tickets from New York to Los Angeles"
+    - "Apply to a job at https://example.com/jobs/123"
+    - "Fill out a contact form"
+    """
+    try:
+        response = await workflow_executor.start_task(
+            session_id=payload.session_id,
+            prompt=payload.prompt,
+            context=payload.context
+        )
+        return response
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Task start failed: {str(e)}")
+
+
+@router.post("/task/provide-information", response_model=TaskResponse)
+async def provide_information(payload: InformationResponse):
+    """
+    Provide information requested by the task agent.
+    This is called when the agent needs additional details to proceed.
+    """
+    try:
+        response = await workflow_executor.provide_information(
+            task_id=payload.task_id,
+            field_name=payload.field_name,
+            value=payload.value
+        )
+        return response
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Information provision failed: {str(e)}")
+
+
+@router.post("/task/continue/{task_id}", response_model=TaskResponse)
+async def continue_task(task_id: str):
+    """
+    Continue execution of a paused or waiting task.
+    """
+    try:
+        response = await workflow_executor.continue_task(task_id)
+        return response
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Task continuation failed: {str(e)}")
+
+
+@router.get("/task/status/{task_id}", response_model=TaskResponse)
+async def get_task_status(task_id: str):
+    """
+    Get the current status of a task.
+    """
+    try:
+        response = await workflow_executor.get_task_status(task_id)
+        if not response:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get task status: {str(e)}")
+
+
+@router.get("/task/log/{task_id}")
+async def get_task_log(task_id: str):
+    """
+    Get the execution log for a task.
+    """
+    try:
+        log = workflow_executor.get_execution_log(task_id)
+        if log is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return {"task_id": task_id, "log": log}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get task log: {str(e)}")
