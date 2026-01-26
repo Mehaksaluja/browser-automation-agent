@@ -1,5 +1,7 @@
+import sys
 import uuid
 import base64
+import asyncio
 from typing import Dict, Optional
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
@@ -11,6 +13,15 @@ class BrowserManager:
         self._sessions: Dict[str, Dict[str, object]] = {}
 
     async def _ensure_browser(self, headless: bool = False):
+        # Ensure Windows event loop policy is set
+        if sys.platform.startswith("win"):
+            try:
+                policy = asyncio.get_event_loop_policy()
+                if not isinstance(policy, asyncio.WindowsSelectorEventLoopPolicy):
+                    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+            except Exception:
+                pass
+        
         if self._playwright is None:
             self._playwright = await async_playwright().start()
 
