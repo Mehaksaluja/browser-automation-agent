@@ -25,9 +25,9 @@ from app.services.workflow_executor import WorkflowExecutor
 router = APIRouter()
 browser_manager = BrowserManager()
 
-# Initialize task agent with OpenAI API key from environment
-openai_api_key = os.getenv("OPENAI_API_KEY")
-task_agent = TaskAgent(api_key=openai_api_key)
+# Task agent: Gemini (GEMINI_API_KEY) or fallback
+gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY")
+task_agent = TaskAgent(api_key=gemini_api_key)
 workflow_executor = WorkflowExecutor(browser_manager, task_agent)
 
 @router.get("/health")
@@ -39,8 +39,21 @@ async def health():
 # ---------------------------
 @router.post("/session/start", response_model=StartSessionResponse)
 async def start_session(payload: StartSessionRequest):
-    session_id = await browser_manager.create_session(headless=payload.headless)
-    return StartSessionResponse(session_id=session_id, message="✅ Session started")
+    try:
+        session_id = await browser_manager.create_session(headless=payload.headless)
+        return StartSessionResponse(session_id=session_id, message="✅ Session started")
+    except NotImplementedError as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Windows asyncio subprocess issue. Restart server with: set UVICORN_USE_SELECTOR=1 && uvicorn app.main:app --reload"
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        detail = str(e)
+        if "playwright install" in detail.lower() or "chromium" in detail.lower():
+            detail = f"{detail} (Run in terminal: playwright install chromium)"
+        raise HTTPException(status_code=500, detail=f"Session start failed: {detail}") from e
 
 @router.post("/session/navigate")
 async def navigate(payload: NavigateRequest):
